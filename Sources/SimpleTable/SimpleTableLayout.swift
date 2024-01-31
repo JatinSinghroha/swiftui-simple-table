@@ -3,30 +3,26 @@ import SwiftUI
 /// SwiftUI layout that arranges provided collection of views in a table.
 public struct SimpleTableLayout: Layout {
   public struct Cache: Equatable {
-    var columnWidth: [Int: CGFloat]
-    var rowHeight: [Int: CGFloat]
+        var columnWidth: [Int: CGFloat]
+        var rowHeight: [Int: CGFloat]
+        var cellLocations: [Cell: CGPoint]
+        var cellSizes: [Cell: CGSize]
 
-    var size: CGSize {
-      CGSize(
-        width: columnWidth.map(\.value).reduce(0, +),
-        height: rowHeight.map(\.value).reduce(0, +)
-      )
-    }
+        var size: CGSize {
+            CGSize(
+                width: columnWidth.map(\.value).reduce(0, +),
+                height: rowHeight.map(\.value).reduce(0, +)
+            )
+        }
 
-    func location(for cell: Cell) -> CGPoint {
-      return CGPoint(
-        x: (0..<cell.column).map { columnWidth[$0, default: 0] }.reduce(0, +),
-        y: (0..<cell.row).map { rowHeight[$0, default: 0] }.reduce(0, +)
-      )
-    }
+        func location(for cell: Cell) -> CGPoint {
+            cellLocations[cell, default: .zero]
+        }
 
-    func size(for cell: Cell) -> CGSize {
-      CGSize(
-        width: columnWidth[cell.column, default: 0],
-        height: rowHeight[cell.row, default: 0]
-      )
+        func size(for cell: Cell) -> CGSize {
+            cellSizes[cell, default: .zero]
+        }
     }
-  }
 
   struct Cell: Equatable {
     var column: Int
@@ -59,25 +55,40 @@ public struct SimpleTableLayout: Layout {
   public var cellAspectRatio: CGFloat?
 
   public func makeCache(subviews: Subviews) -> Cache {
-    var columnWidth: [Int: CGFloat] = [:]
-    var rowHeight: [Int: CGFloat] = [:]
+        var columnWidth: [Int: CGFloat] = [:]
+        var rowHeight: [Int: CGFloat] = [:]
+        var cellLocations: [Cell: CGPoint] = [:]
+        var cellSizes: [Cell: CGSize] = [:]
 
-    for index in subviews.indices {
-      let subviewSize = subviews[index].sizeThatFits(.unspecified)
-      let cell = cell(at: index)
-      columnWidth[cell.column] = max(columnWidth[cell.column, default: 0], subviewSize.width)
-      rowHeight[cell.row] = max(rowHeight[cell.row, default: 0], subviewSize.height)
-    }
+        for index in subviews.indices {
+            let subviewSize = subviews[index].sizeThatFits(.unspecified)
+            let cell = cell(at: index)
+            columnWidth[cell.column] = max(columnWidth[cell.column, default: 0], subviewSize.width)
+            rowHeight[cell.row] = max(rowHeight[cell.row, default: 0], subviewSize.height)
 
-    if equalColumnWidths, cellAspectRatio == nil {
-      let maxColumnWidth = columnWidth.map(\.value).reduce(CGFloat.zero, max)
-      columnWidth = columnWidth.mapValues { _ in maxColumnWidth }
-    }
+            // Calculate cell location and size
+            let cellLocation = CGPoint(
+                x: (0..<cell.column).map { columnWidth[$0, default: 0] }.reduce(0, +),
+                y: (0..<cell.row).map { rowHeight[$0, default: 0] }.reduce(0, +)
+            )
+            let cellSize = CGSize(
+                width: columnWidth[cell.column, default: 0],
+                height: rowHeight[cell.row, default: 0]
+            )
+            cellLocations[cell] = cellLocation
+            cellSizes[cell] = cellSize
+        }
 
-    if equalRowHeights, cellAspectRatio == nil {
-      let maxRowHeight = rowHeight.map(\.value).reduce(CGFloat.zero, max)
-      rowHeight = rowHeight.mapValues { _ in maxRowHeight }
-    }
+        // Streamline equal widths/heights calculation
+        if equalColumnWidths, cellAspectRatio == nil {
+            let maxColumnWidth = columnWidth.values.max() ?? 0
+            columnWidth.keys.forEach { columnWidth[$0] = maxColumnWidth }
+        }
+
+        if equalRowHeights, cellAspectRatio == nil {
+            let maxRowHeight = rowHeight.values.max() ?? 0
+            rowHeight.keys.forEach { rowHeight[$0] = maxRowHeight }
+        }
 
     if let cellAspectRatio {
       var cellWidth = columnWidth.map(\.value).reduce(CGFloat.zero, max)
@@ -91,10 +102,7 @@ public struct SimpleTableLayout: Layout {
       rowHeight = rowHeight.mapValues { _ in cellHeight }
     }
 
-    return Cache(
-      columnWidth: columnWidth,
-      rowHeight: rowHeight
-    )
+            return Cache(columnWidth: columnWidth, rowHeight: rowHeight, cellLocations: cellLocations, cellSizes: cellSizes)
   }
 
   public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
