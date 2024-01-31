@@ -24,7 +24,7 @@ public struct SimpleTableLayout: Layout {
         }
     }
 
-  struct Cell: Equatable, Hashable {
+  struct Cell: Equatable {
     var column: Int
     var row: Int
   }
